@@ -1,11 +1,38 @@
 package app.ballbox.machineadssync
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import app.ballbox.machineadssync.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+
+    private val storagePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            binding.statusText.text = if (granted) {
+                "Storage access granted. Tap Sync now."
+            } else {
+                "Storage access is required for the selected target root"
+            }
+        }
+
+    private val allFilesAccessLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            binding.statusText.text = if (hasStorageAccess()) {
+                "Storage access granted. Tap Sync now."
+            } else {
+                "Storage access is required for the selected target root"
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,6 +49,11 @@ class MainActivity : AppCompatActivity() {
 
             if (manifestUrl.isEmpty() || targetRoot.isEmpty()) {
                 binding.statusText.text = "Manifest URL and target root are required"
+                return@setOnClickListener
+            }
+
+            if (!hasStorageAccess()) {
+                requestStorageAccess()
                 return@setOnClickListener
             }
 
@@ -55,6 +87,38 @@ class MainActivity : AppCompatActivity() {
     private fun appendLog(line: String) {
         val previous = binding.logText.text?.toString().orEmpty()
         binding.logText.text = if (previous.isBlank()) line else "$previous\n$line"
+    }
+
+    private fun hasStorageAccess(): Boolean = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> Environment.isExternalStorageManager()
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+        }
+        else -> true
+    }
+
+    private fun requestStorageAccess() {
+        binding.statusText.text = "Grant storage access, then return to this app"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val appSettings = Intent(
+                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            val fallbackSettings = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+            allFilesAccessLauncher.launch(
+                if (appSettings.resolveActivity(packageManager) != null) {
+                    appSettings
+                } else {
+                    fallbackSettings
+                }
+            )
+        } else {
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
     }
 
     companion object {
