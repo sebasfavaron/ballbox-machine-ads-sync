@@ -17,7 +17,7 @@ Current source tree size is intentionally tiny.
 
 ## Current defaults
 - manifest URL: `https://ballbox.app/api/machines/2601070188/ads-manifest`
-- target root: `/sdcard/TcnFoldercopy`
+- target root: `/sdcard/TcnFolder`
 
 ## Current behavior
 - fetch manifest JSON

@@ -39,12 +39,26 @@
             android:hint="Target root"
             android:inputType="text" />
 
-        <Button
-            android:id="@+id/syncButton"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Sync now" />
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/syncButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Sync now" />
+
+            <Button
+                android:id="@+id/backButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="Back" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/statusText"
