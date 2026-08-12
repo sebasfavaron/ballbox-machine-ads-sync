@@ -23,18 +23,26 @@ Current source tree size is intentionally tiny.
 - fetch manifest JSON
 - download changed files only
 - validate sha256
+- stream downloads to disk instead of holding videos in memory
 - write exact relative paths under target root
+- reject absolute paths and path traversal outside target root
 - show logs on screen
 - report restart policy from backend
 
-## Important note
-This project was scaffolded without installing an emulator on `ballbox-first`.
-It is not yet built on this machine because Android build tooling/wrapper is not present locally.
-The code is ready for Android Studio or an existing Gradle/SDK setup.
+## Build
+The Gradle wrapper is included. Build with JDK 17 or newer and Android SDK 34:
+
+```bash
+./gradlew testDebugUnitTest assembleDebug
+```
+
+The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+
+## Storage access
+The default target is shared storage. On Android 11 or newer, the first sync opens
+the system "All files access" screen. Grant access, return to the app, and tap
+`Sync now` again. Android 10 and older use the normal storage permission prompt.
 
 ## Next step
-- open in Android Studio on a machine with Android SDK
-- add Gradle wrapper there
-- build APK
 - install on the vending machine
 - test one folder-driven slot first

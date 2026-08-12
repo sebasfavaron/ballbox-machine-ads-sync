@@ -1,16 +1,41 @@
 package app.ballbox.machineadssync
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import app.ballbox.machineadssync.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+
+    private val storagePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            binding.statusText.text = if (granted) {
+                "Storage access granted. Tap Sync now."
+            } else {
+                "Storage access is required for the selected target root"
+            }
+            appendLog(if (granted) "Storage permission granted." else "Storage permission denied.")
+        }
+
+    private val allFilesAccessLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            val granted = hasStorageAccess()
+            binding.statusText.text = if (granted) {
+                "Storage access granted. Tap Sync now."
+            } else {
+                "Storage access is required for the selected target root"
+            }
+            appendLog(if (granted) "All-files access granted." else "All-files access not granted.")
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,9 +46,7 @@ class MainActivity : AppCompatActivity() {
         binding.targetRootInput.setText(DEFAULT_TARGET_ROOT)
         binding.logText.text = "Ready"
 
-        binding.backButton.setOnClickListener {
-            finish()
-        }
+        binding.backButton.setOnClickListener { finish() }
 
         binding.syncButton.setOnClickListener {
             val manifestUrl = binding.manifestUrlInput.text?.toString()?.trim().orEmpty()
@@ -34,31 +57,13 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            if (!hasStoragePermission()) {
-                binding.statusText.text = "Storage permission required"
-                appendLog("Requesting storage permission...")
-                ActivityCompat.requestPermissions(this, STORAGE_PERMISSIONS, REQUEST_STORAGE_PERMISSIONS)
+            if (!hasStorageAccess()) {
+                appendLog("Requesting storage access...")
+                requestStorageAccess()
                 return@setOnClickListener
             }
 
             startSync(manifestUrl, targetRoot)
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != REQUEST_STORAGE_PERMISSIONS) return
-
-        if (hasStoragePermission()) {
-            binding.statusText.text = "Permission granted"
-            appendLog("Storage permission granted. Tap Sync now again.")
-        } else {
-            binding.statusText.text = "Storage permission denied"
-            appendLog("Storage permission denied.")
         }
     }
 
@@ -89,24 +94,39 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun hasStoragePermission(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return true
-        return STORAGE_PERMISSIONS.all { permission ->
-            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-        }
-    }
-
     private fun appendLog(line: String) {
         val previous = binding.logText.text?.toString().orEmpty()
         binding.logText.text = if (previous.isBlank()) line else "$previous\n$line"
     }
 
+    private fun hasStorageAccess(): Boolean = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> Environment.isExternalStorageManager()
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ->
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+        else -> true
+    }
+
+    private fun requestStorageAccess() {
+        binding.statusText.text = "Grant storage access, then return to this app"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val appSettings = Intent(
+                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            val fallbackSettings = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+            allFilesAccessLauncher.launch(
+                if (appSettings.resolveActivity(packageManager) != null) appSettings else fallbackSettings
+            )
+        } else {
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
+
     companion object {
-        private const val REQUEST_STORAGE_PERMISSIONS = 1001
-        private val STORAGE_PERMISSIONS = arrayOf(
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-        )
         private const val DEFAULT_MANIFEST_URL = "https://ballbox.app/api/machines/2601070188/ads-manifest"
         private const val DEFAULT_TARGET_ROOT = "/sdcard/TcnFolder"
     }
